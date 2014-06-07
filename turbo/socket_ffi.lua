@@ -301,7 +301,7 @@ local export = util.tablemerge(SOCK,
 return util.tablemerge({
     strerror = strerror,
     resolv_hostname = resolv_hostname,
-    getaddrinfo = ffi.C.getaddrinfo,
+    --getaddrinfo = ffi.C.getaddrinfo,
     set_nonblock_flag = set_nonblock_flag,
     set_reuseaddr_opt = set_reuseaddr_opt,
     new_nonblock_socket = new_nonblock_socket,

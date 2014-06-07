@@ -144,13 +144,15 @@ end
 --- Current msecs since epoch. Better granularity than Lua builtin.
 -- @return Number
 function util.gettimeofday()
-    C.gettimeofday(g_timeval, nil)
+    -- FIXME: MAKE WINDOWS SUPPORT
+    --C.gettimeofday(g_timeval, nil)
     return (tonumber((g_timeval.tv_sec * 1000)+
                      (g_timeval.tv_usec / 1000)))
 end
 
 do
-    local rt = ffi.load("rt")
+    -- FIXME: MAKE WINDOWS SUPPORT
+    --local rt = ffi.load("rt")
     local ts = ffi.new("struct timespec")
     -- Current msecs since arbitrary start point, doesn't jump due to
     -- time changes

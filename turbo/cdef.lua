@@ -15,141 +15,148 @@
 -- limitations under the License.
 
 local ffi = require "ffi"
+local __WINDOWS = ffi.abi("win")
+local __UNIX = not __WINDOWS
+local __LINUX = not __UNIX
+local __ABI32 = ffi.abi("32bit")
+local __ABI64 = ffi.abi("64   bit")
 
+--- ******* stdlib UNIX *******
+if __UNIX then
+    ffi.cdef [[
+    typedef int32_t pid_t;
 
---- ******* stdlib *******
-ffi.cdef [[
-typedef int32_t pid_t;
-
-void *malloc(size_t sz);
-void *realloc (void* ptr, size_t size);
-void free(void *ptr);
-int sprintf(char * str, const char * format, ...);
-int printf(const char *format, ...);
-void *memmove(void * destination, const void * source, size_t num);
-int memcmp(const void * ptr1, const void * ptr2, size_t num);
-void *memchr(void * ptr, int value, size_t num);
-int strncasecmp(const char *s1, const char *s2, size_t n);
-int snprintf(char *s, size_t n, const char *format, ...);
-pid_t fork();
-pid_t wait(int32_t *status);
-pid_t waitpid(pid_t pid, int *status, int options);
-pid_t getpid();
-int execvp(const char *path, char *const argv[]);
-]]
-
---- ******* Socket *******
-ffi.cdef([[
-typedef int32_t socklen_t;
-
-struct sockaddr {
-  unsigned short    sa_family;    // address family, AF.AF_xxx
-  char              sa_data[14];  // 14 bytes of protocol address
-};
-
-struct sockaddr_storage {
-  unsigned short int ss_family;
-  unsigned long int __ss_align;
-  char __ss_padding[128 - (2 * sizeof(unsigned long int))];
-};
-
-struct in_addr {
-  unsigned long s_addr;
-};
-
-struct in6_addr {
-    unsigned char   s6_addr[16];
-};
-
-// IPv4 AF.AF_INET sockets:
-
-struct sockaddr_in {
-    short            sin_family;   // e.g. AF.AF_INET, AF.AF_INET6
-    unsigned short   sin_port;     // e.g. htons(3490)
-    struct in_addr   sin_addr;     // see struct in_addr, below
-    char             sin_zero[8];  // zero this if you want to
-} __attribute__ ((__packed__));
-
-// IPv6 AF.AF_INET6 sockets:
-
-struct sockaddr_in6 {
-    uint16_t       sin6_family;   // address family, AF.AF_INET6
-    uint16_t       sin6_port;     // port number, Network Byte Order
-    uint32_t       sin6_flowinfo; // IPv6 flow information
-    struct in6_addr sin6_addr;     // IPv6 address
-    uint32_t       sin6_scope_id; // Scope ID
-};
-
-extern char *strerror(int errnum);
-extern int32_t socket (int32_t domain, int32_t type, int32_t protocol);
-extern int32_t bind (int32_t fd, const struct sockaddr * addr, socklen_t len);
-extern int32_t listen (int32_t fd, int32_t backlog);
-extern int32_t dup(int32_t oldfd);
-extern int32_t close (int32_t fd);
-extern int32_t connect (int32_t fd, const struct sockaddr * addr, socklen_t len);
-extern int32_t setsockopt (int32_t fd, int32_t level, int32_t optname, const void *optval, socklen_t optlen);
-extern int32_t getsockopt (int32_t fd, int32_t level, int32_t optname, void * optval, socklen_t * optlen);
-extern int32_t accept (int32_t fd, struct sockaddr * addr, socklen_t * addr_len);
-extern uint32_t ntohl (uint32_t netlong);
-extern uint32_t htonl (uint32_t hostlong);
-extern uint16_t ntohs (uint16_t netshort);
-extern uint16_t htons (uint16_t hostshort);
-extern int32_t inet_pton (int32_t af, const char *cp, void *buf);
-extern const char *inet_ntop (int32_t af, const void *cp, char *buf, socklen_t len);
-extern char *inet_ntoa (struct in_addr in);
-extern int32_t fcntl (int32_t fd, int32_t cmd, int32_t opt); /* Notice the non canonical form, int32_t instead of ...     */
-]])
-
-if ffi.abi("32bit") then
-ffi.cdef [[
-    extern int32_t send (int32_t fd, const void *buf, size_t n, int32_t flags);
-    extern int32_t recv (int32_t fd, void *buf, size_t n, int32_t flags);
-    extern int32_t sendto (int32_t fd, const void *buf, size_t n, int32_t flags, const struct sockaddr * addr, socklen_t addr_len);
-    extern int32_t recvfrom (int32_t fd, void * buf, size_t n, int32_t flags, struct sockaddr * addr, socklen_t * addr_len);
-]]
-elseif ffi.abi("64bit") then
-ffi.cdef [[
-    extern int64_t send (int32_t fd, const void *buf, size_t n, int32_t flags);
-    extern int64_t recv (int32_t fd, void *buf, size_t n, int32_t flags);
-    extern int64_t sendto (int32_t fd, const void *buf, size_t n, int32_t flags, const struct sockaddr * addr, socklen_t addr_len);
-    extern int64_t recvfrom (int32_t fd, void * buf, size_t n, int32_t flags, struct sockaddr * addr, socklen_t * addr_len);
-]]
+    void *malloc(size_t sz);
+    void *realloc(void*ptr, size_t size);
+    void free(void *ptr);
+    int sprintf(char *str, const char *format, ...);
+    int printf(const char *format, ...);
+    void *memmove(void *destination, const void *source, size_t num);
+    int memcmp(const void *ptr1, const void *ptr2, size_t num);
+    void *memchr(void *ptr, int value, size_t num);
+    int strncasecmp(const char *s1, const char *s2, size_t n);
+    int snprintf(char *s, size_t n, const char *format, ...);
+    pid_t fork();
+    pid_t wait(int *status);
+    pid_t waitpid(pid_t pid, int *status, int options);
+    pid_t getpid();
+    int execvp(const char *path, char *const argv[]);
+    ]]
 end
 
+--- ******* Socket UNIX *******
+if __UNIX then
+    ffi.cdef([[
+    typedef int socklen_t;
 
---- ******* epoll.h *******
-ffi.cdef[[
-typedef union epoll_data {
-    void        *ptr;
-    int          fd;
-    uint32_t     u32;
-    uint64_t     u64;
-} epoll_data_t;
-]]
-if (ffi.abi("32bit")) then
--- struct epoll_event is declared packed on 64 bit,
--- but not on 32 bit.
-ffi.cdef[[
-struct epoll_event {
-    uint32_t     events;      /* Epoll events */
-    epoll_data_t data;        /* User data variable */
-};
-]]
-else
-ffi.cdef[[
-struct epoll_event {
-    uint32_t     events;      /* Epoll events */
-    epoll_data_t data;        /* User data variable */
-} __attribute__ ((__packed__));
-]]
+    struct sockaddr {
+        unsigned short sa_family;
+        char sa_data[14];
+    };
+
+    struct sockaddr_storage {
+        unsigned short int ss_family;
+        unsigned long int __ss_align;
+        char __ss_padding[128 - (2 *sizeof(unsigned long int))];
+    };
+
+    struct in_addr {
+        unsigned long s_addr;
+    };
+
+    struct in6_addr {
+        unsigned char s6_addr[16];
+    };
+
+    struct sockaddr_in {
+        short sin_family;
+        unsigned short sin_port;
+        struct in_addr sin_addr;
+        char sin_zero[8];
+    } __attribute__ ((__packed__));
+
+    struct sockaddr_in6 {
+        unsigned short sin6_family;
+        unsigned short sin6_port;
+        unsigned int sin6_flowinfo;
+        struct in6_addr sin6_addr;
+        unsigned int sin6_scope_id;
+    };
+
+    char *strerror(int errnum);
+    int socket(int domain, int type, int protocol);
+    int bind(int fd, const struct sockaddr *addr, socklen_t len);
+    int listen(int fd, int backlog);
+    int dup(int oldfd);
+    int close(int fd);
+    int connect(int fd, const struct sockaddr *addr, socklen_t len);
+    int setsockopt(int fd, 
+        int level,
+        int optname,
+        const void *optval,
+        socklen_t optlen);
+    int getsockopt(int fd,
+        int level,
+        int optname,
+        void *optval,
+        socklen_t *optlen);
+    int accept(int fd, struct sockaddr *addr, socklen_t *addr_len);
+    unsigned int ntohl(unsigned int netlong);
+    unsigned int htonl(unsigned int hostlong);
+    unsigned short ntohs(unsigned int netshort);
+    unsigned short htons(unsigned int hostshort);
+    int inet_pton(int af, const char *cp, void *buf);
+    const char *inet_ntop(int af, const void *cp, char *buf, socklen_t len);
+    char *inet_ntoa (struct in_addr in);
+    int fcntl (int fd, int cmd, int opt);
+    ]])
+
+    if __ABI32 then
+        ffi.cdef [[
+             int send(int fd, const void *buf, size_t n, int flags);
+             int recv(int fd, void *buf, size_t n, int flags);
+        ]]
+    elseif __ABI64 then
+        ffi.cdef [[
+            int64_t send(int fd, const void *buf, size_t n, int flags);
+            int64_t recv(int fd, void *buf, size_t n, int flags);
+        ]]
+    end
 end
-ffi.cdef[[
-typedef struct epoll_event epoll_event;
 
-int32_t epoll_create(int32_t size);
-int32_t epoll_ctl(int32_t epfd, int32_t op, int32_t fd, struct epoll_event* event);
-int32_t epoll_wait(int32_t epfd, struct epoll_event *events, int32_t maxevents, int32_t timeout);
-]]
+--- ******* epoll.h Linux *******
+if __LINUX then
+    ffi.cdef[[
+    typedef union epoll_data {
+        void *ptr;
+        int fd;
+        unsigned int u32;
+        uint64_t u64;
+    } epoll_data_t;
+    ]]
+    if __ABI32 then
+        ffi.cdef[[
+            struct epoll_event {
+                unsigned int events;
+                epoll_data_t data;
+            };
+        ]]
+    elseif __ABI64 then
+        ffi.cdef[[
+            struct epoll_event {
+                unsigned int events;
+                epoll_data_t data;
+            } __attribute__ ((__packed__));
+        ]]
+        end
+    ffi.cdef[[
+    typedef struct epoll_event epoll_event;
+
+    int32_t epoll_create(int32_t size);
+    int32_t epoll_ctl(int32_t epfd, int32_t op, int32_t fd, struct epoll_event*event);
+    int32_t epoll_wait(int32_t epfd, struct epoll_event *events, int32_t maxevents, int32_t timeout);
+    ]]
+end
 
 
 if _G.TURBO_AXTLS then
@@ -172,20 +179,20 @@ const char *ssl_get_cert_subject_alt_dnsname(const SSL *ssl, int dnsindex);
 int ssl_obj_load(SSL_CTX *ssl_ctx, int obj_type, const char *filename, const char *password);
 
 
-/* axTLS Hash functions */
+/*axTLS Hash functions */
 typedef struct
 {
-  uint32_t state[4];        /* state (ABCD) */
-  uint32_t count[2];        /* number of bits, modulo 2^64 (lsb first) */
-  uint8_t buffer[64];       /* input buffer */
+  uint32_t state[4];        /*state (ABCD) */
+  uint32_t count[2];        /*number of bits, modulo 2^64 (lsb first) */
+  uint8_t buffer[64];       /*input buffer */
 } MD5_CTX;
 typedef struct
 {
-    uint32_t Intermediate_Hash[20/4]; /* Message Digest */
-    uint32_t Length_Low;            /* Message length in bits */
-    uint32_t Length_High;           /* Message length in bits */
-    uint16_t Message_Block_Index;   /* Index into message block array   */
-    uint8_t Message_Block[64];      /* 512-bit message blocks */
+    uint32_t Intermediate_Hash[20/4]; /*Message Digest */
+    uint32_t Length_Low;            /*Message length in bits */
+    uint32_t Length_High;           /*Message length in bits */
+    uint16_t Message_Block_Index;   /*Index into message block array   */
+    uint8_t Message_Block[64];      /*512-bit message blocks */
 } SHA1_CTX;
 
 void SHA1_Init(SHA1_CTX *ctx);
@@ -193,17 +200,17 @@ void SHA1_Update(SHA1_CTX *ctx, const uint8_t *msg, int len);
 void SHA1_Final(uint8_t *digest, SHA1_CTX *ctx);
 
 void MD5_Init(MD5_CTX *ctx);
-void MD5_Update(MD5_CTX *ctx, const uint8_t * msg, int len);
+void MD5_Update(MD5_CTX *ctx, const uint8_t *msg, int len);
 void MD5_Final(uint8_t *digest, MD5_CTX *ctx);
 
-/* note: digest length is fixed at 20 bytes (160-bit) */
+/*note: digest length is fixed at 20 bytes (160-bit) */
 void hmac_sha1(const uint8_t *msg, int length, const uint8_t *key,
                int key_len, uint8_t *digest);
 
 ]]
 
 elseif _G.TURBO_SSL then
---- ******* OpenSSL *******
+--- *******OpenSSL *******
 -- Note: Typedef SSL structs to void as we never access their members and they are
 -- massive in ifdef's etc and are best left as blackboxes!
 ffi.cdef [[
@@ -215,22 +222,22 @@ typedef void X509_NAME;
 typedef void X509_NAME_ENTRY;
 typedef void ASN1_STRING;
 
-const SSL_METHOD *SSLv3_server_method(void);  /* SSLv3 */
-const SSL_METHOD *SSLv3_client_method(void);  /* SSLv3 */
-const SSL_METHOD *SSLv23_method(void);        /* SSLv3 but can rollback to v2 */
-const SSL_METHOD *SSLv23_server_method(void); /* SSLv3 but can rollback to v2 */
-const SSL_METHOD *SSLv23_client_method(void); /* SSLv3 but can rollback to v2 */
-const SSL_METHOD *TLSv1_method(void);         /* TLSv1.0 */
-const SSL_METHOD *TLSv1_server_method(void);  /* TLSv1.0 */
-const SSL_METHOD *TLSv1_client_method(void);  /* TLSv1.0 */
-const SSL_METHOD *TLSv1_1_method(void);       /* TLSv1.1 */
-const SSL_METHOD *TLSv1_1_server_method(void);/* TLSv1.1 */
-const SSL_METHOD *TLSv1_1_client_method(void);/* TLSv1.1 */
-const SSL_METHOD *TLSv1_2_method(void);       /* TLSv1.2 */
-const SSL_METHOD *TLSv1_2_server_method(void);/* TLSv1.2 */
-const SSL_METHOD *TLSv1_2_client_method(void);/* TLSv1.2 */
+const SSL_METHOD *SSLv3_server_method(void);  /*SSLv3 */
+const SSL_METHOD *SSLv3_client_method(void);  /*SSLv3 */
+const SSL_METHOD *SSLv23_method(void);        /*SSLv3 but can rollback to v2 */
+const SSL_METHOD *SSLv23_server_method(void); /*SSLv3 but can rollback to v2 */
+const SSL_METHOD *SSLv23_client_method(void); /*SSLv3 but can rollback to v2 */
+const SSL_METHOD *TLSv1_method(void);         /*TLSv1.0 */
+const SSL_METHOD *TLSv1_server_method(void);  /*TLSv1.0 */
+const SSL_METHOD *TLSv1_client_method(void);  /*TLSv1.0 */
+const SSL_METHOD *TLSv1_1_method(void);       /*TLSv1.1 */
+const SSL_METHOD *TLSv1_1_server_method(void);/*TLSv1.1 */
+const SSL_METHOD *TLSv1_1_client_method(void);/*TLSv1.1 */
+const SSL_METHOD *TLSv1_2_method(void);       /*TLSv1.2 */
+const SSL_METHOD *TLSv1_2_server_method(void);/*TLSv1.2 */
+const SSL_METHOD *TLSv1_2_client_method(void);/*TLSv1.2 */
 
-/* From openssl/ssl.h */
+/*From openssl/ssl.h */
 void OPENSSL_add_all_algorithms_noconf(void);
 void SSL_load_error_strings(void);
 void ERR_free_strings(void);
@@ -265,7 +272,7 @@ X509 *SSL_get_peer_certificate(const SSL *s);
 long SSL_get_verify_result(const SSL *ssl);
 const char *X509_verify_cert_error_string(long n);
 
-/* From openssl/err.h  */
+/*From openssl/err.h  */
 unsigned long ERR_get_error(void);
 unsigned long ERR_peek_error(void);
 unsigned long ERR_peek_error_line(const char **file,int *line);
@@ -282,7 +289,7 @@ const char *ERR_lib_error_string(unsigned long e);
 const char *ERR_func_error_string(unsigned long e);
 const char *ERR_reason_error_string(unsigned long e);
 
-/* OpenSSL Hash functions */
+/*OpenSSL Hash functions */
 typedef unsigned int SHA_LONG;
 typedef void EVP_MD;
 typedef struct SHAstate_st{
@@ -302,16 +309,16 @@ unsigned char *HMAC(const EVP_MD *evp_md, const void *key,
                int key_len, const unsigned char *d, int n,
                unsigned char *md, unsigned int *md_len);
 
-/* only want validate_hostname for OPENSSL, axTLS does this in lua code */
+/*only want validate_hostname for OPENSSL, axTLS does this in lua code */
 int32_t validate_hostname(const char *hostname, const SSL *server);
 ]]
 end
 
---- ******* Signals *******
+--- *******Signals *******
 ffi.cdef([[
 typedef void (*sighandler_t) (int32_t);
-extern sighandler_t signal (int32_t signum, sighandler_t handler);
-extern int kill(pid_t pid, int sig);
+ sighandler_t signal (int32_t signum, sighandler_t handler);
+ int kill(pid_t pid, int sig);
 ]])
 -- signalfd
 ffi.cdef(string.format([[
@@ -346,56 +353,56 @@ struct signalfd_siginfo
   uint8_t __pad[48];
 };
 int signalfd(int fd, const sigset_t *mask, int flags);
-]], (1024 / (8 * ffi.sizeof("unsigned long")))))
+]], (1024 / (8 *ffi.sizeof("unsigned long")))))
 
---- ******* Time *******
+--- *******Time *******
 ffi.cdef([[
 typedef long time_t ;
 typedef long suseconds_t ;
 struct timeval
 {
-    time_t tv_sec;      /* Seconds.  */
-    suseconds_t tv_usec;    /* Microseconds.  */
+    time_t tv_sec;      /*Seconds.  */
+    suseconds_t tv_usec;    /*Microseconds.  */
 };
 struct timezone
 {
-    int tz_minuteswest;     /* Minutes west of GMT.  */
-    int tz_dsttime;     /* Nonzero if DST is ever in effect.  */
+    int tz_minuteswest;     /*Minutes west of GMT.  */
+    int tz_dsttime;     /*Nonzero if DST is ever in effect.  */
 };
 struct tm
 {
-  int tm_sec;           /* Seconds. [0-60] (1 leap second) */
-  int tm_min;           /* Minutes. [0-59] */
-  int tm_hour;          /* Hours.   [0-23] */
-  int tm_mday;          /* Day.     [1-31] */
-  int tm_mon;           /* Month.   [0-11] */
-  int tm_year;          /* Year - 1900.  */
-  int tm_wday;          /* Day of week. [0-6] */
-  int tm_yday;          /* Days in year.[0-365] */
-  int tm_isdst;         /* DST.     [-1/0/1]*/
-  long int __tm_gmtoff;     /* Seconds east of UTC.  */
-  const char *__tm_zone;    /* Timezone abbreviation.  */
+  int tm_sec;           /*Seconds. [0-60] (1 leap second) */
+  int tm_min;           /*Minutes. [0-59] */
+  int tm_hour;          /*Hours.   [0-23] */
+  int tm_mday;          /*Day.     [1-31] */
+  int tm_mon;           /*Month.   [0-11] */
+  int tm_year;          /*Year - 1900.  */
+  int tm_wday;          /*Day of week. [0-6] */
+  int tm_yday;          /*Days in year.[0-365] */
+  int tm_isdst;         /*DST.     [-1/0/1]*/
+  long int __tm_gmtoff;     /*Seconds east of UTC.  */
+  const char *__tm_zone;    /*Timezone abbreviation.  */
 };
-typedef struct timezone * timezone_ptr_t;
+typedef struct timezone *timezone_ptr_t;
 
-size_t strftime(char* ptr, size_t maxsize, const char* format, const struct tm* timeptr);
+size_t strftime(char*ptr, size_t maxsize, const char*format, const struct tm*timeptr);
 struct tm *localtime(const time_t *timer);
-time_t time(time_t* timer);
+time_t time(time_t*timer);
 int fputs(const char *str, void *stream); // Stream defined as void to avoid pulling in FILE.
 int snprintf(char *s, size_t n, const char *format, ...);
-int sprintf ( char * str, const char * format, ... );
+int sprintf ( char *str, const char *format, ... );
 
-struct tm * gmtime (const time_t * timer);
-extern int gettimeofday (struct timeval *tv, timezone_ptr_t tz);
+struct tm *gmtime (const time_t *timer);
+ int gettimeofday (struct timeval *tv, timezone_ptr_t tz);
 
 ]])
 
---- ******* RealTime (for Monotonic time) *******
+--- *******RealTime (for Monotonic time) *******
 ffi.cdef([[
 struct timespec
 {
-    time_t tv_sec;      /* Seconds.  */
-    long tv_nsec;    /* Nanoseconds.  */
+    time_t tv_sec;      /*Seconds.  */
+    long tv_nsec;    /*Nanoseconds.  */
 };
 typedef uint32_t clockid_t;
 enum clock_ids {
@@ -405,19 +412,19 @@ enum clock_ids {
 int clock_gettime(clockid_t clk_id, struct timespec *tp);
 ]])
 
---- ******* Resolv *******
+--- *******Resolv *******
 ffi.cdef [[
-/* Description of data base entry for a single host.  */
+/*Description of data base entry for a single host.  */
 struct hostent
 {
-    char *h_name;       /* Official name of host.  */
-    char **h_aliases;   /* Alias list.  */
-    int32_t h_addrtype; /* Host address type.  */
-    int32_t h_length;   /* Length of address.  */
-    char **h_addr_list; /* List of addresses from name server.  */
+    char *h_name;       /*Official name of host.  */
+    char **h_aliases;   /*Alias list.  */
+    int32_t h_addrtype; /*Host address type.  */
+    int32_t h_length;   /*Length of address.  */
+    char **h_addr_list; /*List of addresses from name server.  */
 };
 
-extern struct hostent *gethostbyname (const char *name);
+ struct hostent *gethostbyname (const char *name);
 ]]
 
 
@@ -443,7 +450,7 @@ const char *gai_strerror(int ecode);
 ]]
 
 
---- ******* HTTP parser and libtffi *******
+--- *******HTTP parser and libtffi *******
 ffi.cdef[[
 enum http_parser_url_fields
 { UF_SCHEMA           = 0
@@ -457,61 +464,61 @@ enum http_parser_url_fields
 };
 
 struct http_parser {
-/** PRIVATE **/
-unsigned char type : 2;     /* enum http_parser_type */
-unsigned char flags : 6;    /* F_* values from 'flags' enum; semi-public */
-unsigned char state;        /* enum state from http_parser.c */
-unsigned char header_state; /* enum header_state from http_parser.c */
-unsigned char index;        /* index into current matcher */
+/**PRIVATE **/
+unsigned char type : 2;     /*enum http_parser_type */
+unsigned char flags : 6;    /*F_*values from 'flags' enum; semi-public */
+unsigned char state;        /*enum state from http_parser.c */
+unsigned char header_state; /*enum header_state from http_parser.c */
+unsigned char index;        /*index into current matcher */
 
-uint32_t nread;          /* # bytes read in various scenarios */
-uint64_t content_length; /* # bytes in body (0 if no Content-Length header) */
+uint32_t nread;          /*# bytes read in various scenarios */
+uint64_t content_length; /*# bytes in body (0 if no Content-Length header) */
 
-/** READ-ONLY **/
+/**READ-ONLY **/
 unsigned short http_major;
 unsigned short http_minor;
-unsigned short status_code; /* responses only */
-unsigned char method;       /* requests only */
+unsigned short status_code; /*responses only */
+unsigned char method;       /*requests only */
 unsigned char http_errno : 7;
 
-/* 1 = Upgrade header was present and the parser has exited because of that.
- * 0 = No upgrade header present.
- * Should be checked when http_parser_execute() returns in addition to
- * error checking.
+/*1 = Upgrade header was present and the parser has exited because of that.
+ *0 = No upgrade header present.
+ *Should be checked when http_parser_execute() returns in addition to
+ *error checking.
  */
 unsigned char upgrade : 1;
 
-/** PUBLIC **/
-void *data; /* A pointer to get hook to the "connection" or "socket" object */
+/**PUBLIC **/
+void *data; /*A pointer to get hook to the "connection" or "socket" object */
 };
 
 struct http_parser_url {
-  uint16_t field_set;           /* Bitmask of (1 << UF_*) values */
-  uint16_t port;                /* Converted UF_PORT string */
+  uint16_t field_set;           /*Bitmask of (1 << UF_*) values */
+  uint16_t port;                /*Converted UF_PORT string */
 
   struct {
-    uint16_t off;               /* Offset into buffer in which field starts */
-    uint16_t len;               /* Length of run in buffer */
+    uint16_t off;               /*Offset into buffer in which field starts */
+    uint16_t len;               /*Length of run in buffer */
   } field_data[7];
 };
 
 struct turbo_key_value_field{
-    /* Size of strings.  */
+    /*Size of strings.  */
     size_t key_sz;
     size_t value_sz;
-    /* These are offsets for passed in char ptr. */
+    /*These are offsets for passed in char ptr. */
     const char *key;       ///< Header key.
     const char *value;     ///< Value corresponding to key.
 };
 
-/** Used internally  */
+/**Used internally  */
 enum header_state{
     NOTHING,
     FIELD,
     VALUE
 };
 
-/** Wrapper struct for http_parser.c to avoid using callback approach.   */
+/**Wrapper struct for http_parser.c to avoid using callback approach.   */
 struct turbo_parser_wrapper{
     int32_t url_rc;
     size_t parsed_sz;
@@ -528,23 +535,23 @@ struct turbo_parser_wrapper{
 };
 
 struct turbo_parser_wrapper *turbo_parser_wrapper_init(
-        const char* data,
+        const char*data,
         size_t len,
         int32_t type);
 
 void turbo_parser_wrapper_exit(struct turbo_parser_wrapper *src);
 bool turbo_parser_check(struct turbo_parser_wrapper *s);
 int32_t http_parser_parse_url(const char *buf, size_t buflen, int32_t is_connect, struct http_parser_url *u);
-extern bool url_field_is_set(const struct http_parser_url *url, enum http_parser_url_fields prop);
-extern char *url_field(const char *url_str, const struct http_parser_url *url, enum http_parser_url_fields prop);
+ bool url_field_is_set(const struct http_parser_url *url, enum http_parser_url_fields prop);
+ char *url_field(const char *url_str, const struct http_parser_url *url, enum http_parser_url_fields prop);
 const char *http_errno_name(int32_t err);
 const char *http_errno_description(int32_t err);
-char* turbo_websocket_mask(const char* mask32, const char* in, size_t sz);
+char*turbo_websocket_mask(const char*mask32, const char*in, size_t sz);
 uint64_t turbo_bswap_u64(uint64_t swap);
 ]]
 
 
---- ******* inotify *******
+--- *******inotify *******
 ffi.cdef [[
 struct inotify_event
 {
@@ -555,19 +562,19 @@ struct inotify_event
     char name [];
 };
 
-extern int inotify_init (void) __attribute__ ((__nothrow__ , __leaf__));
-extern int inotify_add_watch (int __fd, const char *__name, uint32_t __mask)
+ int inotify_init (void) __attribute__ ((__nothrow__ , __leaf__));
+ int inotify_add_watch (int __fd, const char *__name, uint32_t __mask)
     __attribute__ ((__nothrow__ , __leaf__));
-extern int inotify_rm_watch (int __fd, int __wd)
+ int inotify_rm_watch (int __fd, int __wd)
     __attribute__ ((__nothrow__ , __leaf__));
 ]]
 
 
---- ******* file system *******
+--- *******file system *******
 ffi.cdef [[
 typedef long int __ssize_t;
 typedef __ssize_t ssize_t;
-extern ssize_t read(int __fd, void *__buf, size_t __nbytes) ;
+ ssize_t read(int __fd, void *__buf, size_t __nbytes) ;
 int syscall(int number, ...);
 void *mmap(void *addr, size_t length, int prot, int flags, int fd, long offset);
 int munmap(void *addr, size_t length);
@@ -650,7 +657,7 @@ elseif ffi.arch == "ppc" then
 end
 
 
---- ******* glob *******
+--- *******glob *******
 ffi.cdef[[
 typedef struct {
     long unsigned int gl_pathc;
@@ -666,3 +673,38 @@ typedef struct {
 int glob(const char *pattern, int flag, int (*)(const char *, int), glob_t *pglob);
 void globfree(glob_t *pglob);
 ]]
+
+--- ***Windows *******
+
+if __WINDOWS then
+  ffi.cdef[[
+    typedef void*UINT_PTR;
+    typedef UINT_PTR SOCKET;
+    typedef struct fd_set {
+        unsigned int fd_count;
+        SOCKET fd_array[1024];
+    } fd_set;
+
+    int select(
+      int nfds,
+      fd_set *readfds,
+      fd_set *writefds,
+      fd_set *exceptfds,
+      const struct timeval *timeout
+    );
+
+    int send(
+      SOCKET s,
+      const char *buf,
+      int len,
+      int flags
+    );
+
+    int recv(
+      SOCKET s,
+      char *buf,
+      int len,
+      int flags
+    );
+  ]]
+end

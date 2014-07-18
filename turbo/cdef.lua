@@ -19,7 +19,7 @@ local __WINDOWS = ffi.abi("win")
 local __UNIX = not __WINDOWS
 local __LINUX = not __UNIX
 local __ABI32 = ffi.abi("32bit")
-local __ABI64 = ffi.abi("64   bit")
+local __ABI64 = ffi.abi("64bit")
 
 --- ******* stdlib UNIX *******
 if __UNIX then

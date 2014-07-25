@@ -7,7 +7,7 @@
 -- The IOLoop class is written in such a way that adding new poll
 -- implementations is easy.
 --
--- Copyright 2011, 2012, 2013 John Abrahamsen
+-- Copyright 2011, 2012, 2013, 2014 John Abrahamsen
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.

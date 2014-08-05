@@ -15,14 +15,10 @@
 -- limitations under the License.
 
 local ffi = require "ffi"
-local __WINDOWS = ffi.abi("win")
-local __UNIX = not __WINDOWS
-local __LINUX = not __UNIX
-local __ABI32 = ffi.abi("32bit")
-local __ABI64 = ffi.abi("64bit")
+local p = require "turbo.platform"
 
 --- ******* stdlib UNIX *******
-if __UNIX then
+if p.__UNIX__ then
     ffi.cdef [[
         typedef int pid_t;
 
@@ -45,7 +41,7 @@ if __UNIX then
 end
 
 --- ******* Socket UNIX *******
-if __UNIX then
+if p.__UNIX__ then
     ffi.cdef([[
         typedef int socklen_t;
         struct sockaddr{
@@ -111,12 +107,12 @@ if __UNIX then
         int fcntl(int fd, int cmd, int opt);
     ]])
 
-    if __ABI32 then
+    if p.__ABI32__ then
         ffi.cdef [[
             int send(int fd, const void *buf, size_t n, int flags);
             int recv(int fd, void *buf, size_t n, int flags);
         ]]
-    elseif __ABI64 then
+    elseif p.__ABI64__ then
         ffi.cdef [[
             int64_t send(int fd, const void *buf, size_t n, int flags);
             int64_t recv(int fd, void *buf, size_t n, int flags);
@@ -125,7 +121,7 @@ if __UNIX then
 end
 
 --- ******* epoll.h Linux *******
-if __LINUX then
+if p.__LINUX__ then
     ffi.cdef[[
         typedef union epoll_data{
             void *ptr;
@@ -134,14 +130,14 @@ if __LINUX then
             uint64_t u64;
         } epoll_data_t;
     ]]
-    if __ABI32 then
+    if p.__ABI32__ then
         ffi.cdef[[
             struct epoll_event{
                 unsigned int events;
                 epoll_data_t data;
             };
         ]]
-    elseif __ABI64 then
+    elseif p.__ABI64__ then
         ffi.cdef[[
             struct epoll_event{
                 unsigned int events;
@@ -338,7 +334,7 @@ elseif _G.TURBO_SSL then
 end
 
 --- *******Signals *******
-if __UNIX then
+if p.__UNIX__ then
     ffi.cdef[[
         typedef void(*sighandler_t)(int);
         sighandler_t signal(int signum, sighandler_t handler);
@@ -381,7 +377,7 @@ if __UNIX then
 end
 
 --- ******* Time *******
-if __UNIX then
+if p.__UNIX__ then
     ffi.cdef([[
         typedef long time_t;
         typedef long suseconds_t;
@@ -442,7 +438,7 @@ if __UNIX then
 end
 
 --- ******* Resolv *******
-if __UNIX then
+if p.__UNIX__ then
     ffi.cdef[[
         struct hostent{
             char *h_name;
@@ -535,7 +531,7 @@ ffi.cdef[[
     };
 
     struct turbo_parser_wrapper *turbo_parser_wrapper_init(
-        const char*data,
+        const char *data,
         size_t len,
         int type);
     void turbo_parser_wrapper_exit(struct turbo_parser_wrapper *src);
@@ -557,8 +553,7 @@ ffi.cdef[[
     uint64_t turbo_bswap_u64(uint64_t swap);
 ]]
 
-
-if __LINUX then
+if p.__LINUX__ then
     --- ******* inotify *******
     ffi.cdef[[
         struct inotify_event{
@@ -671,7 +666,7 @@ if __LINUX then
 end
 
 --- *******glob *******
-if __LINUX then
+if p.__LINUX__ then
     ffi.cdef[[
         typedef struct {
             long unsigned int gl_pathc;
@@ -695,8 +690,11 @@ end
 
 --- ***Windows *******
 
-if __WINDOWS then
+if p.__WINDOWS__ then
   ffi.cdef[[
+    typedef short WORD;
+    typedef int DWORD;
+    typedef int BOOL;
     typedef void* UINT_PTR;
     typedef UINT_PTR SOCKET;
     typedef struct fd_set{
@@ -704,29 +702,62 @@ if __WINDOWS then
         SOCKET fd_array[1024];
     } fd_set;
 
+    typedef struct _FILETIME {
+        DWORD dwLowDateTime;
+        DWORD dwHighDateTime;
+    } FILETIME, *PFILETIME;
+
+    typedef struct _SYSTEMTIME {
+        WORD wYear;
+        WORD wMonth;
+        WORD wDayOfWeek;
+        WORD wDay;
+        WORD wHour;
+        WORD wMinute;
+        WORD wSecond;
+        WORD wMilliseconds;
+    } SYSTEMTIME, *PSYSTEMTIME;
+
+    typedef union _ULARGE_INTEGER {
+        struct {
+            DWORD LowPart;
+            DWORD HighPart;
+        };
+        struct {
+            DWORD LowPart;
+            DWORD HighPart;
+        } u;
+        ULONGLONG QuadPart;
+    } ULARGE_INTEGER, *PULARGE_INTEGER;
+
     typedef struct timeval{
         long tv_sec;
         long tv_usec;
     } timeval;
 
+    void GetSystemTime(SYSTEMTIME lpSystemTime);
+    BOOL SystemTimeToFileTime(
+        const SYSTEMTIME *lpSystemTime,
+        FILETIME lpFileTime
+    );
     int select(
-      int nfds,
-      fd_set *readfds,
-      fd_set *writefds,
-      fd_set *exceptfds,
-      const struct timeval *timeout
+        int nfds,
+        fd_set *readfds,
+        fd_set *writefds,
+        fd_set *exceptfds,
+        const struct timeval *timeout
     );
     int send(
-      SOCKET s,
-      const char *buf,
-      int len,
-      int flags
+        SOCKET s,
+        const char *buf,
+        int len,
+        int flags
     );
     int recv(
-      SOCKET s,
-      char *buf,
-      int len,
-      int flags
+        SOCKET s,
+        char *buf,
+        int len,
+        int flags
     );
   ]]
 end

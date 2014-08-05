@@ -36,15 +36,15 @@ local ffi =         require "ffi"
 -- FIXME: MAKE WINDOWS SUPPORT
 local ltp_loaded, libturbo_parser = pcall(ffi.load, "./tffi_wrap.dll")
 
--- if not ltp_loaded then
---     -- Check /usr/local/lib explicitly also.
---     ltp_loaded, libturbo_parser =
---         pcall(ffi.load, "/usr/local/lib/libtffi_wrap.so")
---     if not ltp_loaded then
---         error("Could not load libtffi_wrap.so. \
---             Please run makefile and ensure that installation is done correct.")
---     end
--- end
+if not ltp_loaded then
+    -- Check /usr/local/lib explicitly also.
+    ltp_loaded, libturbo_parser =
+        pcall(ffi.load, "/usr/local/lib/libtffi_wrap.so")
+    if not ltp_loaded then
+        error("Could not load libtffi_wrap.so. \
+            Please run makefile and ensure that installation is done correct.")
+    end
+end
 
 require "turbo.cdef"
 require "turbo.3rdparty.middleclass"

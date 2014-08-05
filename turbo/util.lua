@@ -22,6 +22,7 @@
 
 local ffi = require "ffi"
 local buffer = require "turbo.structs.buffer"
+local platform = require "turbo.platform"
 require "turbo.cdef"
 local C = ffi.C
 local UCHAR_MAX = tonumber(ffi.new("uint8_t", -1))
@@ -143,23 +144,44 @@ end
 
 --- Current msecs since epoch. Better granularity than Lua builtin.
 -- @return Number
-function util.gettimeofday()
-    -- FIXME: MAKE WINDOWS SUPPORT
-    --C.gettimeofday(g_timeval, nil)
-    return (tonumber((g_timeval.tv_sec * 1000)+
-                     (g_timeval.tv_usec / 1000)))
+if platform.__LINUX__ then
+    function util.gettimeofday()
+        C.gettimeofday(g_timeval, nil)
+        return (tonumber((g_timeval.tv_sec * 1000)+
+                         (g_timeval.tv_usec / 1000)))
+    end
+elseif platform.__WINDOWS__ then
+    -- Create a Linux gettimeofday compatible output.
+    local epoch = ffi.new("int64_t", 116444736000000000)
+    local file_time = ffi.new("FILETIME")
+    local system_time = ffi.new("SYSTEMTIME")
+    local ularge = ffi.new("ULARGE_INTEGER")
+    function util.gettimeofday()
+        C.GetSystemTime(system_time)
+        C.SystemTimeToFileTime(system_time, file_time)
+        ularge.LowPart = file_time.dwLowDateTime
+        ularge.HighPart = file_time.dwHighDateTime
+        g_timeval.tv_sec = ((ularge.QuadPart - epoch) / 10000000); -- L
+        g_timeval.tv_usec = (system_time.wMilliseconds * 1000);
+        return (tonumber((g_timeval.tv_sec * 1000)+
+                         (g_timeval.tv_usec / 1000)))
+    end
 end
 
 do
-    -- FIXME: MAKE WINDOWS SUPPORT
-    --local rt = ffi.load("rt")
-    local ts = ffi.new("struct timespec")
-    -- Current msecs since arbitrary start point, doesn't jump due to
-    -- time changes
-    -- @return Number
-    function util.gettimemonotonic()
-        rt.clock_gettime(rt.CLOCK_MONOTONIC, ts)
-        return (tonumber((ts.tv_sec*1000)+(ts.tv_nsec/1000000)))
+    if platform.__LINUX__ then
+        local rt = ffi.load("rt")
+        local ts = ffi.new("struct timespec")
+        -- Current msecs since arbitrary start point, doesn't jump due to
+        -- time changes
+        -- @return Number
+        function util.gettimemonotonic()
+            rt.clock_gettime(rt.CLOCK_MONOTONIC, ts)
+            return (tonumber((ts.tv_sec*1000)+(ts.tv_nsec/1000000)))
+        end
+    elseif platform.__WINDOWS__ then
+        -- FIXME: MAKE WINDOWS SUPPORT
+        util.gettimemonotonic = util.gettimeofday
     end
 end
 

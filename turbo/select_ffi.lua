@@ -13,3 +13,15 @@
 -- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
+
+local ffi = require "ffi"
+require "turbo.cdef"
+
+local select_ffi = {}
+
+
+function select_ffi.create()
+
+end
+
+return select_ffi

@@ -707,6 +707,8 @@ if p.__WINDOWS__ then
         int tz_dsttime;
     };
 
+    typedef unsigned int socklen_t;
+
     typedef struct fd_set{
         unsigned int fd_count;
         SOCKET fd_array[1024];
@@ -750,6 +752,24 @@ if p.__WINDOWS__ then
         const SYSTEMTIME *lpSystemTime,
         FILETIME *lpFileTime
     );
+
+    typedef struct WSAData {
+        WORD wVersion;
+        WORD wHighVersion;
+        char szDescription[256];
+        char szSystemStatus[128];
+        unsigned short iMaxSockets;
+        unsigned short iMaxUdpDg;
+        char *lpVendorInfo;
+    } WSADATA, *LPWSADATA;
+
+    int WSAGetLastError(void);
+
+    int WSAStartup(
+      WORD wVersionRequested,
+      LPWSADATA lpWSAData
+    );
+
     int select(
         int nfds,
         fd_set *readfds,

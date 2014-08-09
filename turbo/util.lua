@@ -162,7 +162,7 @@ elseif platform.__WINDOWS__ then
         k32.SystemTimeToFileTime(system_time, file_time)
         ularge.LowPart = file_time.dwLowDateTime
         ularge.HighPart = file_time.dwHighDateTime
-        g_timeval.tv_sec = ((ularge.QuadPart - epoch) / 10000000); -- L
+        g_timeval.tv_sec = ((ularge.QuadPart - epoch) / 10000000);
         g_timeval.tv_usec = (system_time.wMilliseconds * 1000);
         return (tonumber((g_timeval.tv_sec * 1000)+
                          (g_timeval.tv_usec / 1000)))

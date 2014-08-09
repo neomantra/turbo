@@ -22,8 +22,12 @@
 -- limitations under the License.
 
 local log = require "turbo.log"
+local platform = require "turbo.platform"
 local util = require "turbo.util"
-local signal = require "turbo.signal"
+local signal
+if platform.__LINUX__ then
+    signal = require "turbo.signal"
+end
 local socket = require "turbo.socket_ffi"
 local coctx = require "turbo.coctx"
 local ffi = require "ffi"
@@ -32,10 +36,9 @@ require "turbo.3rdparty.middleclass"
 local unpack = util.funpack
 local ioloop = {} -- ioloop namespace
 
-local epoll_ffi, _poll_implementation
+local epoll_ffi, select_ffi, _poll_implementation
 
-if pcall(require, "turbo.epoll_ffi") then
-    -- Epoll FFI module found and loaded.
+if platform.__LINUX__ then
     _poll_implementation = 'epoll_ffi'
     epoll_ffi = require 'turbo.epoll_ffi'
     -- Populate global with Epoll module constants
@@ -44,10 +47,17 @@ if pcall(require, "turbo.epoll_ffi") then
     ioloop.PRI = epoll_ffi.EPOLL_EVENTS.EPOLLPRI
     ioloop.ERROR = bit.bor(epoll_ffi.EPOLL_EVENTS.EPOLLERR,
         epoll_ffi.EPOLL_EVENTS.EPOLLHUP)
+elseif platform.__WINDOWS__ then
+    -- Select only knows 2, read or write, anyway keep the different ones.
+    ioloop.READ = 0x1
+    ioloop.WRITE = 0x2
+    ioloop.PRI = 0x3
+    ioloop.ERROR = 0x4
+    _poll_implementation = 'select_ffi'
+    select_ffi = require "turbo.select_ffi"
 else
     -- No poll modules found. Break execution and give error.
-    error("Could not load a poll module. Make sure you are running this with \
-        LuaJIT. Standard Lua is not supported.")
+    error("Could not load a poll module. This OS is not supported by Turbo.")
 end
 
 --- Create or get the global IOLoop instance.
@@ -82,6 +92,8 @@ function ioloop.IOLoop:initialize()
     -- Set the most fitting poll implementation. The API's are all unified.
     if _poll_implementation == 'epoll_ffi' then
         self._poll = _EPoll_FFI:new()
+    elseif _poll_implementation == "select_ffi" then
+        self._poll = _Select_FFI:new()
     end
     -- Must be set to avoid stopping execution when SIGPIPE is recieved.
     signal.signal(signal.SIGPIPE, signal.SIG_IGN)
@@ -592,38 +604,86 @@ function _Timeout:callback()
 end
 
 
-_EPoll_FFI = class('_EPoll_FFI')
+if platform.__LINUX__ then
+    --- Internal class for epoll-based event loop using the epoll_ffi module.
+    _EPoll_FFI = class('_EPoll_FFI')
 
---- Internal class for epoll-based event loop using the epoll_ffi module.
-function _EPoll_FFI:initialize()
-    local errno
-    self._epoll_fd, errno = epoll_ffi.epoll_create() -- New epoll, store its fd.
-    if self._epoll_fd == -1 then
-        error("epoll_create failed with errno = " .. errno)
+    function _EPoll_FFI:initialize()
+        local errno
+        self._epoll_fd, errno = epoll_ffi.epoll_create() -- New epoll, store its fd.
+        if self._epoll_fd == -1 then
+            error("epoll_create failed with errno = " .. errno)
+        end
     end
-end
 
-function _EPoll_FFI:fileno()
-    return self._epoll_fd
-end
+    function _EPoll_FFI:fileno()
+        return self._epoll_fd
+    end
 
-function _EPoll_FFI:register(fd, events)
-    return epoll_ffi.epoll_ctl(self._epoll_fd, epoll_ffi.EPOLL_CTL_ADD,
-        fd, events)
-end
+    function _EPoll_FFI:register(fd, events)
+        return epoll_ffi.epoll_ctl(self._epoll_fd, epoll_ffi.EPOLL_CTL_ADD,
+            fd, events)
+    end
 
-function _EPoll_FFI:modify(fd, events)
-    return epoll_ffi.epoll_ctl(self._epoll_fd, epoll_ffi.EPOLL_CTL_MOD,
-        fd, events)
-end
+    function _EPoll_FFI:modify(fd, events)
+        return epoll_ffi.epoll_ctl(self._epoll_fd, epoll_ffi.EPOLL_CTL_MOD,
+            fd, events)
+    end
 
-function _EPoll_FFI:unregister(fd)
-    return epoll_ffi.epoll_ctl(self._epoll_fd, epoll_ffi.EPOLL_CTL_DEL,
-        fd, 0)
-end
+    function _EPoll_FFI:unregister(fd)
+        return epoll_ffi.epoll_ctl(self._epoll_fd, epoll_ffi.EPOLL_CTL_DEL,
+            fd, 0)
+    end
 
-function _EPoll_FFI:poll(timeout)
-    return epoll_ffi.epoll_wait(self._epoll_fd, timeout)
+    function _EPoll_FFI:poll(timeout)
+        return epoll_ffi.epoll_wait(self._epoll_fd, timeout)
+    end
+
+elseif platform.__WINDOWS__ then
+    --- Internal class for select-based event loop using the select_ffi module.
+    _Select_FFI = class('_Select_FFI')
+    local ws32 = ffi.load("Ws2_32")
+
+    if ws32.WSAStartup(0x202, wsd) ~= 0 then
+        error("Failed to load Winsock library! Error %d\n",
+            ws32.WSAGetLastError())
+    else
+        print("Winsock2 lib loaded.")
+    end
+
+    function _Select_FFI:initialize()
+        self.write_n = 0
+        self.write_set = ffi.new("struct fd_set")
+        self.read_n = 0
+        self.read_set = ffi.new("struct fd_set")
+        ffi.fill(self.write_set, ffi.sizeof(self.write_set), 0x0)
+        ffi.fill(self.read_set, ffi.sizeof(self.read_set), 0x0)
+    end
+
+    function _Select_FFI:fileno()
+        error("Not available for select poll.")
+    end
+
+    function _Select_FFI:register(fd, events)
+        if events == ioloop.READ then
+            self._read_set[self.read_n] = fd
+            self.read_n = self.read_n + 1
+        elseif events == ioloop.WRITE then
+            self._write_set[self.write_n] = fd
+            self.write_n = self.write_n + 1
+        else
+            error("Not implemented bit pattern...")
+        end
+    end
+
+    function _Select_FFI:modify(fd, events)
+    end
+
+    function _Select_FFI:unregister(fd)
+    end
+
+    function _Select_FFI:poll(timeout)
+    end
 end
 
 return ioloop

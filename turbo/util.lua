@@ -25,7 +25,7 @@ local buffer = require "turbo.structs.buffer"
 local platform = require "turbo.platform"
 require "turbo.cdef"
 local C = ffi.C
-local UCHAR_MAX = tonumber(ffi.new("uint8_t", -1))
+local UCHAR_MAX = tonumber(ffi.new("unsigned int", -1))
 local g_time_str_buf = ffi.new("char[1024]")
 local g_time_t = ffi.new("time_t[1]")
 local g_timeval = ffi.new("struct timeval")
@@ -156,9 +156,10 @@ elseif platform.__WINDOWS__ then
     local file_time = ffi.new("FILETIME")
     local system_time = ffi.new("SYSTEMTIME")
     local ularge = ffi.new("ULARGE_INTEGER")
+    local k32 = ffi.load("Kernel32")
     function util.gettimeofday()
-        C.GetSystemTime(system_time)
-        C.SystemTimeToFileTime(system_time, file_time)
+        k32.GetSystemTime(system_time)
+        k32.SystemTimeToFileTime(system_time, file_time)
         ularge.LowPart = file_time.dwLowDateTime
         ularge.HighPart = file_time.dwHighDateTime
         g_timeval.tv_sec = ((ularge.QuadPart - epoch) / 10000000); -- L

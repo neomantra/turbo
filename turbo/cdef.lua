@@ -379,8 +379,8 @@ end
 --- ******* Time *******
 if p.__UNIX__ then
     ffi.cdef([[
-        typedef long time_t;
         typedef long suseconds_t;
+        typedef long time_t;
         struct timeval{
             time_t tv_sec;
             suseconds_t tv_usec;
@@ -694,9 +694,19 @@ if p.__WINDOWS__ then
   ffi.cdef[[
     typedef short WORD;
     typedef int DWORD;
+    typedef unsigned long long ULONGLONG;
     typedef int BOOL;
     typedef void* UINT_PTR;
     typedef UINT_PTR SOCKET;
+
+    typedef long time_t;
+    typedef long suseconds_t;
+
+    struct timezone{
+        int tz_minuteswest;
+        int tz_dsttime;
+    };
+
     typedef struct fd_set{
         unsigned int fd_count;
         SOCKET fd_array[1024];
@@ -735,10 +745,10 @@ if p.__WINDOWS__ then
         long tv_usec;
     } timeval;
 
-    void GetSystemTime(SYSTEMTIME lpSystemTime);
+    void GetSystemTime(SYSTEMTIME *lpSystemTime);
     BOOL SystemTimeToFileTime(
         const SYSTEMTIME *lpSystemTime,
-        FILETIME lpFileTime
+        FILETIME *lpFileTime
     );
     int select(
         int nfds,

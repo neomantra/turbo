@@ -17,6 +17,7 @@
 local socket =      require "turbo.socket_ffi"
 local ioloop =      require "turbo.ioloop"
 local log =         require "turbo.log"
+local platform =    require "turbo.platform"
 local ffi =         require "ffi"
 local bit =         require "bit"
 local SOL_SOCKET =  socket.SOL_SOCKET
@@ -34,8 +35,26 @@ local EAGAIN =      socket.EAGAIN
 local INET_ADDRSTRLEN = 16
 local INET6_ADDRSTRLEN = 46
 local C = ffi.C
+if platform.__WINDOWS__ then
+    ws32 = ffi.load("Ws2_32")
+    C = ws32
+end
 
 local sockutils = {} -- sockutils namespace
+
+if platform.__WINDOWS__ then
+    function sockutils.init_wsa()
+        -- Initialize WinSock... WSAData is useless for us, but does not accept
+        -- null ptr, so just accept defeat and feed it something.
+        if ws32.WSAStartup(0x202, ffi.new("struct WSAData")) ~= 0 then
+            error(string.format("Failed to load Winsock library! Error %d\n",
+                ws32.WSAGetLastError()))
+        else
+            print("Winsock2 lib loaded.")
+        end
+    end
+    sockutils.init_wsa()
+end
 
 --- Creates the sockaddr_in or sockaddr_in6 struct
 -- If not address is defined '0.0.0.0'/'::' will be used.
@@ -71,7 +90,7 @@ function sockutils.create_server_address(port, address, family)
     end
 
     if type(address) == "string" then
-        rc = ffi.C.inet_pton(family, address, 
+        rc = C.inet_pton(family, address, 
             family == AF_INET and serv_addr.sin_addr or serv_addr.sin6_addr)
         if rc == 0 then
             error(string.format("[sockutil.lua] Invalid address %s",
@@ -162,7 +181,7 @@ function sockutils.bind_sockets(port, address, backlog, family)
     if fd == -1 then
         errno = ffi.errno()
         error(string.format("[tcpserver.lua Errno %d] Could not create socket. %s", 
-            errno, 
+            C.WSAGetLastError(),
             socket.strerror(errno)))        
     end    
     rc, msg = socket.set_nonblock_flag(fd)
@@ -194,7 +213,7 @@ function sockutils.bind_sockets(port, address, backlog, family)
 end
 
 local client_addr = ffi.new("struct sockaddr_storage")
-local client_addr_sz = ffi.new("int32_t[1]", ffi.sizeof(client_addr))
+local client_addr_sz = ffi.new("int[1]", ffi.sizeof(client_addr))
 
 local function _add_accept_hander_cb(arg, fd, events)
    while true do 

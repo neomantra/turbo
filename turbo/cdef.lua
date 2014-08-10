@@ -40,84 +40,83 @@ if p.__UNIX__ then
     ]]
 end
 
---- ******* Socket UNIX *******
-if p.__UNIX__ then
-    ffi.cdef([[
-        typedef int socklen_t;
-        struct sockaddr{
-            unsigned short sa_family;
-            char sa_data[14];
-        };
-        struct sockaddr_storage{
-            unsigned short int ss_family;
-            unsigned long int __ss_align;
-            char __ss_padding[128 - (2 *sizeof(unsigned long int))];
-        };
-        struct in_addr{
-            unsigned long s_addr;
-        };
-        struct in6_addr{
-            unsigned char s6_addr[16];
-        };
-        struct sockaddr_in{
-            short sin_family;
-            unsigned short sin_port;
-            struct in_addr sin_addr;
-            char sin_zero[8];
-        } __attribute__ ((__packed__));
-        struct sockaddr_in6{
-            unsigned short sin6_family;
-            unsigned short sin6_port;
-            unsigned int sin6_flowinfo;
-            struct in6_addr sin6_addr;
-            unsigned int sin6_scope_id;
-        };
+--- ******* Berkeley Socket UNIX *******
 
-        char *strerror(int errnum);
-        int socket(int domain, int type, int protocol);
-        int bind(int fd, const struct sockaddr *addr, socklen_t len);
-        int listen(int fd, int backlog);
-        int dup(int oldfd);
-        int close(int fd);
-        int connect(int fd, const struct sockaddr *addr, socklen_t len);
-        int setsockopt(
-            int fd, 
-            int level,
-            int optname,
-            const void *optval,
-            socklen_t optlen);
-        int getsockopt(
-            int fd,
-            int level,
-            int optname,
-            void *optval,
-            socklen_t *optlen);
-        int accept(int fd, struct sockaddr *addr, socklen_t *addr_len);
-        unsigned int ntohl(unsigned int netlong);
-        unsigned int htonl(unsigned int hostlong);
-        unsigned short ntohs(unsigned int netshort);
-        unsigned short htons(unsigned int hostshort);
-        int inet_pton(int af, const char *cp, void *buf);
-        const char *inet_ntop(
-            int af,
-            const void *cp,
-            char *buf,
-            socklen_t len);
-        char *inet_ntoa(struct in_addr in);
-        int fcntl(int fd, int cmd, int opt);
-    ]])
+ffi.cdef([[
+    typedef int socklen_t;
+    struct sockaddr{
+        unsigned short sa_family;
+        char sa_data[14];
+    };
+    struct sockaddr_storage{
+        unsigned short int ss_family;
+        unsigned long int __ss_align;
+        char __ss_padding[128 - (2 *sizeof(unsigned long int))];
+    };
+    struct in_addr{
+        unsigned long s_addr;
+    };
+    struct in6_addr{
+        unsigned char s6_addr[16];
+    };
+    struct sockaddr_in{
+        short sin_family;
+        unsigned short sin_port;
+        struct in_addr sin_addr;
+        char sin_zero[8];
+    } __attribute__ ((__packed__));
+    struct sockaddr_in6{
+        unsigned short sin6_family;
+        unsigned short sin6_port;
+        unsigned int sin6_flowinfo;
+        struct in6_addr sin6_addr;
+        unsigned int sin6_scope_id;
+    };
 
-    if p.__ABI32__ then
-        ffi.cdef [[
-            int send(int fd, const void *buf, size_t n, int flags);
-            int recv(int fd, void *buf, size_t n, int flags);
-        ]]
-    elseif p.__ABI64__ then
-        ffi.cdef [[
-            int64_t send(int fd, const void *buf, size_t n, int flags);
-            int64_t recv(int fd, void *buf, size_t n, int flags);
-        ]]
-    end
+    char *strerror(int errnum);
+    int socket(int domain, int type, int protocol);
+    int bind(int fd, const struct sockaddr *addr, socklen_t len);
+    int listen(int fd, int backlog);
+    int dup(int oldfd);
+    int close(int fd);
+    int connect(int fd, const struct sockaddr *addr, socklen_t len);
+    int setsockopt(
+        int fd, 
+        int level,
+        int optname,
+        const void *optval,
+        socklen_t optlen);
+    int getsockopt(
+        int fd,
+        int level,
+        int optname,
+        void *optval,
+        socklen_t *optlen);
+    int accept(int fd, struct sockaddr *addr, socklen_t *addr_len);
+    unsigned int ntohl(unsigned int netlong);
+    unsigned int htonl(unsigned int hostlong);
+    unsigned short ntohs(unsigned int netshort);
+    unsigned short htons(unsigned int hostshort);
+    int inet_pton(int af, const char *cp, void *buf);
+    const char *inet_ntop(
+        int af,
+        const void *cp,
+        char *buf,
+        socklen_t len);
+    char *inet_ntoa(struct in_addr in);
+    int fcntl(int fd, int cmd, int opt);
+]])
+
+if p.__ABI32__ then
+    ffi.cdef [[
+        int send(int fd, const void *buf, size_t n, int flags);
+        int recv(int fd, void *buf, size_t n, int flags);
+    ]]
+elseif p.__ABI64__ then
+    ffi.cdef [[
+        int64_t send(int fd, const void *buf, size_t n, int flags);
+        int64_t recv(int fd, void *buf, size_t n, int flags);
+    ]]
 end
 
 --- ******* epoll.h Linux *******
@@ -332,6 +331,12 @@ elseif _G.TURBO_SSL then
         int validate_hostname(const char *hostname, const SSL *server);
     ]]
 end
+
+-- FIXME WINDOWS
+ffi.cdef[[
+    typedef void(*sighandler_t)(int);
+    sighandler_t signal(int signum, sighandler_t handler);
+]]
 
 --- *******Signals *******
 if p.__UNIX__ then

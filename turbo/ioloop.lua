@@ -48,11 +48,11 @@ if platform.__LINUX__ then
     ioloop.ERROR = bit.bor(epoll_ffi.EPOLL_EVENTS.EPOLLERR,
         epoll_ffi.EPOLL_EVENTS.EPOLLHUP)
 elseif platform.__WINDOWS__ then
-    ioloop.READ = 0x001,
-    ioloop.WRITE = 0x002,
-    ioloop.PRI = 0x004,
-    ioloop.ERROR = 0x008,
-    ioloop.EPOLLHUP = 0x0010,
+    ioloop.READ = 0x001
+    ioloop.WRITE = 0x002
+    ioloop.PRI = 0x004
+    ioloop.ERROR = 0x008
+    ioloop.EPOLLHUP = 0x0010
     _poll_implementation = 'select_ffi'
     -- No module to load...
 else
@@ -644,30 +644,58 @@ elseif platform.__WINDOWS__ then
     _Select_FFI = class('_Select_FFI')
     local ws32 = ffi.load("Ws2_32")
     local timeout = ffi.new("struct timeval")
+    timeout.tv_sec = 0
 
-    if ws32.WSAStartup(0x202, wsd) ~= 0 then
-        error("Failed to load Winsock library! Error %d\n",
-            ws32.WSAGetLastError())
+    local function FD_COPY(fdset1, fdset2)
+        ffi.copy(fdset1, fdset2, ffi.sizeof(fdset1))
+    end
+    local function FD_CLR(fd, fdset)
+        for i = 0, fdset.fd_count do
+            if fdset.fd_array[i] == fd then
+               ffi.copy(fdset.fd_array + i,
+                        fdset.fd_array + i + 1)
+               fdset.fd_count = fdset.fd_count - 1
+               return 0
+            end
+        end
+        return -1
+    end
+    local function FD_SET(fd, fdset)
+        fdset.fd_array[fdset.fd_count] = fd
+        fdset.fd_count = fdset.fd_count + 1
+    end
+    local function FD_ZERO(fdset)
+        ffi.fill(fdset, ffi.sizeof(fdset), 0x0)
+        return fdset
+    end
+    local function FD_ISSET(fd, fdset)
+        for i = 0, fdset.fd_count do
+            if fdset.fd_array[i] == fd then
+                return 1
+            end
+        end
+        return 0
+    end
+
+    -- Initialize WinSock... WSAData is useless for us, but does not accept
+    -- null ptr, so just accept defeat and feed it something.
+    if ws32.WSAStartup(0x202, ffi.new("struct WSAData")) ~= 0 then
+        error(string.format("Failed to load Winsock library! Error %d\n",
+            ws32.WSAGetLastError()))
     else
         print("Winsock2 lib loaded.")
     end
 
     function _Select_FFI:initialize()
-        self.write_set_copy =   ffi.new("struct fd_set")
-        self.read_set_copy =    ffi.new("struct fd_set")
-        self.except_set_copy =  ffi.new("struct fd_set")
-        self.write_set =        ffi.new("struct fd_set")
-        self.read_set =         ffi.new("struct fd_set")
-        self.except_set =       ffi.new("struct fd_set")
+        self.write_set_copy =   FD_ZERO(ffi.new("struct fd_set"))
+        self.read_set_copy =    FD_ZERO(ffi.new("struct fd_set"))
+        self.except_set_copy =  FD_ZERO(ffi.new("struct fd_set"))
+        self.write_set =        FD_ZERO(ffi.new("struct fd_set"))
+        self.read_set =         FD_ZERO(ffi.new("struct fd_set"))
+        self.except_set =       FD_ZERO(ffi.new("struct fd_set"))
         -- IOLoop accepts return value from :poll as a epoll_event compliant
         -- structure.
         self.ret_struct =       ffi.new("struct epoll_event[1024]")
-        self.write_n =          0
-        self.except_n =         0
-        self.read_n =           0
-
-        ffi.fill(self.write_set, ffi.sizeof(self.write_set), 0x0)
-        ffi.fill(self.read_set, ffi.sizeof(self.read_set), 0x0)
     end
 
     function _Select_FFI:fileno()
@@ -676,15 +704,12 @@ elseif platform.__WINDOWS__ then
 
     function _Select_FFI:register(fd, events)
         if bit.band(events, ioloop.READ) ~= 0 then
-            self.read_set_copy[self.read_n] = fd
-            self.read_n = self.read_n + 1
+            FD_SET(fd, self.read_set_copy)
         elseif bit.band(events, ioloop.WRITE) ~= 0 then
-            self.write_set_copy[self.write_n] = fd
-            self.write_n = self.write_n + 1
+            FD_SET(fd, self.write_set_copy)
         end
         if bit.band(events, ioloop.ERROR) ~= 0 then
-            self.except_set_copy[self.except_n] = fd
-            self.except_n = self.except_n + 1
+            FD_SET(fd, self.except_set_copy)
         end
     end
 
@@ -697,32 +722,27 @@ elseif platform.__WINDOWS__ then
     end
 
     function _Select_FFI:unregister(fd)
-        for i = 0, self.write_n do
-            if self.write_set_copy[i] == fd then
-                C.memmove(
-                    self.write_set_copy + (i - 1),
-                    self.write_set_copy+fd)
-                -- Remove entry.
-            end
+        if FD_CLR(fd, self.read_set_copy) == 0 then
+            return true
         end
+        if FD_CLR(fd, self.write_set_copy) == 0 then
+            return true
+        end
+        if FD_CLR(fd, self.except_set_copy) == 0 then
+            return true
+        end
+        return false
     end
 
     function _Select_FFI:poll(timeout)
-        ffi.copy(self.write_set,
-                 self.write_set_copy,
-                 ffi.sizeof(self.write_set))
-        ffi.copy(self.read_set,
-                 self.read_set_copy,
-                 ffi.sizeof(self.read_set))
-        ffi.copy(self.except_set,
-                 self.except_set_copy,
-                 ffi.sizeof(self.except_set))
-        self.write_set.fd_count = self.write_n
-        self.read_set.fd_count = self.read_n
-        self.except_set.fd_count = self.except_n
+        FD_COPY(self.write_set_copy, self.write_set)
+        FD_COPY(self.read_set_copy, self.read_set)
+        FD_COPY(self.except_set_copy, self.except_set)
+
         -- First parameter is ignored in Windows.
+        timeout.tv_usec = timeout -- tv_sec is always inited to 0.
         local r = w32.select(
-            0, self.read_set, self.write_set, self.except_set)
+            0, self.read_set, self.write_set, self.except_set, timeout)
         if r == 0 then
             -- Timeout.
             -- rc, num, events

@@ -30,7 +30,7 @@ return {
     , SIG_UNBLOCK = 1
     , SIG_SETMASK = 2
     -- Fake signal functions.
-    , SIG_ERR = ffi.cast("sighandler_t", -1)    --[[ Error return.  ]]
+    , SIG_ERR = ffi.cast("sighandler_t", -1) --[[ Error return.  ]]
     , SIG_DFL = ffi.cast("sighandler_t", 0) --[[ Default action.  ]]
     , SIG_IGN = ffi.cast("sighandler_t", 1) --[[ Ignore signal.  ]]   
     -- Signals.

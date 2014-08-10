@@ -1,6 +1,6 @@
 --- Turbo.lua Socket Module
 --
--- Copyright 2013 John Abrahamsen
+-- Copyright 2013, 2014 John Abrahamsen
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.
@@ -204,6 +204,8 @@ local E = {
     ECONNRESET =        104,
     EPIPE =             32
 }
+
+
 
 local function strerror(errno)
     local cstr = ffi.C.strerror(errno);

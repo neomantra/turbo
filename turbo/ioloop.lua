@@ -48,13 +48,13 @@ if platform.__LINUX__ then
     ioloop.ERROR = bit.bor(epoll_ffi.EPOLL_EVENTS.EPOLLERR,
         epoll_ffi.EPOLL_EVENTS.EPOLLHUP)
 elseif platform.__WINDOWS__ then
-    -- Select only knows 2, read or write, anyway keep the different ones.
-    ioloop.READ = 0x1
-    ioloop.WRITE = 0x2
-    ioloop.PRI = 0x3
-    ioloop.ERROR = 0x4
+    ioloop.READ = 0x001,
+    ioloop.WRITE = 0x002,
+    ioloop.PRI = 0x004,
+    ioloop.ERROR = 0x008,
+    ioloop.EPOLLHUP = 0x0010,
     _poll_implementation = 'select_ffi'
-    select_ffi = require "turbo.select_ffi"
+    -- No module to load...
 else
     -- No poll modules found. Break execution and give error.
     error("Could not load a poll module. This OS is not supported by Turbo.")
@@ -643,6 +643,7 @@ elseif platform.__WINDOWS__ then
     --- Internal class for select-based event loop using the select_ffi module.
     _Select_FFI = class('_Select_FFI')
     local ws32 = ffi.load("Ws2_32")
+    local timeout = ffi.new("struct timeval")
 
     if ws32.WSAStartup(0x202, wsd) ~= 0 then
         error("Failed to load Winsock library! Error %d\n",
@@ -652,10 +653,19 @@ elseif platform.__WINDOWS__ then
     end
 
     function _Select_FFI:initialize()
-        self.write_n = 0
-        self.write_set = ffi.new("struct fd_set")
-        self.read_n = 0
-        self.read_set = ffi.new("struct fd_set")
+        self.write_set_copy =   ffi.new("struct fd_set")
+        self.read_set_copy =    ffi.new("struct fd_set")
+        self.except_set_copy =  ffi.new("struct fd_set")
+        self.write_set =        ffi.new("struct fd_set")
+        self.read_set =         ffi.new("struct fd_set")
+        self.except_set =       ffi.new("struct fd_set")
+        -- IOLoop accepts return value from :poll as a epoll_event compliant
+        -- structure.
+        self.ret_struct =       ffi.new("struct epoll_event[1024]")
+        self.write_n =          0
+        self.except_n =         0
+        self.read_n =           0
+
         ffi.fill(self.write_set, ffi.sizeof(self.write_set), 0x0)
         ffi.fill(self.read_set, ffi.sizeof(self.read_set), 0x0)
     end
@@ -665,24 +675,63 @@ elseif platform.__WINDOWS__ then
     end
 
     function _Select_FFI:register(fd, events)
-        if events == ioloop.READ then
-            self._read_set[self.read_n] = fd
+        if bit.band(events, ioloop.READ) ~= 0 then
+            self.read_set_copy[self.read_n] = fd
             self.read_n = self.read_n + 1
-        elseif events == ioloop.WRITE then
-            self._write_set[self.write_n] = fd
+        elseif bit.band(events, ioloop.WRITE) ~= 0 then
+            self.write_set_copy[self.write_n] = fd
             self.write_n = self.write_n + 1
-        else
-            error("Not implemented bit pattern...")
+        end
+        if bit.band(events, ioloop.ERROR) ~= 0 then
+            self.except_set_copy[self.except_n] = fd
+            self.except_n = self.except_n + 1
         end
     end
 
     function _Select_FFI:modify(fd, events)
+        if not self:unregister(fd) then
+            -- Not found in sets.
+            return false
+        end
+        return self:register(fd, events)
     end
 
     function _Select_FFI:unregister(fd)
+        for i = 0, self.write_n do
+            if self.write_set_copy[i] == fd then
+                C.memmove(
+                    self.write_set_copy + (i - 1),
+                    self.write_set_copy+fd)
+                -- Remove entry.
+            end
+        end
     end
 
     function _Select_FFI:poll(timeout)
+        ffi.copy(self.write_set,
+                 self.write_set_copy,
+                 ffi.sizeof(self.write_set))
+        ffi.copy(self.read_set,
+                 self.read_set_copy,
+                 ffi.sizeof(self.read_set))
+        ffi.copy(self.except_set,
+                 self.except_set_copy,
+                 ffi.sizeof(self.except_set))
+        self.write_set.fd_count = self.write_n
+        self.read_set.fd_count = self.read_n
+        self.except_set.fd_count = self.except_n
+        -- First parameter is ignored in Windows.
+        local r = w32.select(
+            0, self.read_set, self.write_set, self.except_set)
+        if r == 0 then
+            -- Timeout.
+            -- rc, num, events
+            return 0, 0, nil -- Do not pass compat struct.
+        else
+            ffi.fill(self.ret_struct, ffi.sizeof(self.ret_struct, 0))
+            -- Something in sets.
+            return 0, n, self.ret_struct -- Do not pass compat struct.
+        end
     end
 end
 

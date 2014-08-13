@@ -740,7 +740,7 @@ elseif platform.__WINDOWS__ then
         FD_COPY(self.except_set_copy, self.except_set)
 
         -- First parameter is ignored in Windows.
-        timeout.tv_usec = timeout -- tv_sec is always inited to 0.
+        timeout.tv_usec = timeout*1000 -- tv_sec is always inited to 0.
         local r = w32.select(
             0, self.read_set, self.write_set, self.except_set, timeout)
         if r == 0 then
